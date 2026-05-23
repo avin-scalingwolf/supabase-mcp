@@ -1,8 +1,9 @@
 FROM node:20-alpine
 
-# Install git and dependencies globally
+# Install git and dependencies globally (ignoring npm scripts to bypass husky)
 RUN apk add --no-cache git && \
-    npm install -g --ignore-scripts \
+    npm config set ignore-scripts true && \
+    npm install -g \
     @modelcontextprotocol/server-postgres \
     github:supercorp-ai/supergateway
 
