@@ -1,0 +1,30 @@
+{
+  "name": "mcp-gateway",
+  "version": "1.0.0",
+  "description": "Secure authentication and proxy gateway for self-hosted Supabase MCP server",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.2.0",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "keywords": [
+    "mcp",
+    "supabase",
+    "gateway",
+    "proxy",
+    "security",
+    "jwt"
+  ],
+  "author": "Antigravity",
+  "license": "MIT"
+}

@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCP Gateway Console - Admin Dashboard</title>
+  <!-- Modern Premium Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Background Glowing Orbs for Glassmorphism Context -->
+  <div class="glowing-orb orb-1"></div>
+  <div class="glowing-orb orb-2"></div>
+  <div class="glowing-orb orb-3"></div>
+
+  <!-- ==========================================
+       LOGIN VIEW SCREEN
+       ========================================== -->
+  <div id="login-screen" class="screen active">
+    <div class="glass-card login-card">
+      <div class="login-header">
+        <div class="gateway-logo">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        </div>
+        <h1>MCP Gateway</h1>
+        <p>Administrative Access Portal</p>
+      </div>
+      
+      <form id="login-form">
+        <div class="form-group">
+          <label for="admin-password">Console Passphrase</label>
+          <div class="password-input-wrapper">
+            <input type="password" id="admin-password" placeholder="••••••••••••••••" required>
+          </div>
+        </div>
+        <div id="login-error" class="alert-message error hidden">Incorrect password. Please try again.</div>
+        <button type="submit" class="btn btn-primary btn-block">
+          <span>Authorize Access</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       DASHBOARD VIEW SCREEN
+       ========================================== -->
+  <div id="dashboard-screen" class="screen">
+    <!-- Navbar -->
+    <header class="glass-navbar">
+      <div class="nav-brand">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+        <span>MCP Gateway Console</span>
+      </div>
+      
+      <div class="nav-actions">
+        <div class="status-indicator">
+          <span class="pulse-dot green"></span>
+          <span>Admin Session</span>
+        </div>
+        <button id="logout-btn" class="btn btn-secondary btn-sm">
+          <span>Sign Out</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Grid Content -->
+    <main class="dashboard-container">
+      <div class="dashboard-grid">
+        
+        <!-- Left Column: Provisions Form -->
+        <div class="grid-col-1">
+          
+          <!-- Token Generator Card -->
+          <section class="glass-card">
+            <div class="card-header">
+              <h2>Issue Developer Access</h2>
+              <p>Generate a secure JWT Bearer credential to query Supabase</p>
+            </div>
+            
+            <form id="token-generator-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="dev-name">Developer Name</label>
+                  <input type="text" id="dev-name" placeholder="John Doe" required>
+                </div>
+                <div class="form-group">
+                  <label for="dev-email">Developer Email</label>
+                  <input type="email" id="dev-email" placeholder="john@company.com" required>
+                </div>
+              </div>
+              
+              <div class="form-group">
+                <label for="dev-lifespan">Token Lifespan</label>
+                <select id="dev-lifespan">
+                  <option value="30">30 Days Access</option>
+                  <option value="90">90 Days Access</option>
+                  <option value="365" selected>1 Year Access</option>
+                  <option value="0">Never Expires (Infinite)</option>
+                </select>
+              </div>
+
+              <div id="gen-error" class="alert-message error hidden">Failed to generate token.</div>
+              
+              <button type="submit" class="btn btn-primary btn-block">
+                <span>Generate Client Credentials</span>
+              </button>
+            </form>
+          </section>
+
+          <!-- Generated Token Panel (Hidden until generated) -->
+          <section id="generated-token-card" class="glass-card hidden animate-slide-in">
+            <div class="card-header accent-header">
+              <div class="header-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+              </div>
+              <div>
+                <h2>Credentials Successfully Generated!</h2>
+                <p>Provide this header configuration to the developer client application</p>
+              </div>
+            </div>
+
+            <div class="token-container">
+              <label>Authorization Header</label>
+              <div class="copy-box">
+                <code id="raw-token-box">Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...</code>
+                <button class="copy-action-btn" onclick="copyText('raw-token-box')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="curl-container">
+              <label>cURL Verification Snippet</label>
+              <div class="copy-box">
+                <code id="curl-snippet-box">curl -i -X POST http://localhost:8080/mcp ...</code>
+                <button class="copy-action-btn" onclick="copyText('curl-snippet-box')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <button id="close-token-card-btn" class="btn btn-secondary btn-block">Dismiss Screen</button>
+          </section>
+
+        </div>
+
+        <!-- Right Column: Status Panel -->
+        <div class="grid-col-2">
+          
+          <!-- Supabase Live Status Card -->
+          <section class="glass-card status-card">
+            <div class="card-header borderless">
+              <div class="title-with-badge">
+                <h2>Supabase MCP Server</h2>
+                <div id="mcp-status-badge" class="badge offline">
+                  <span class="badge-dot"></span>
+                  <span class="badge-label">Checking...</span>
+                </div>
+              </div>
+              <p>Active downstream database capabilities currently exposed by Supabase</p>
+            </div>
+
+            <!-- Online Mode tools directory -->
+            <div id="mcp-tools-container" class="tools-list">
+              <div class="loading-spinner-wrapper">
+                <div class="spinner"></div>
+                <p>Polling Supabase MCP configuration...</p>
+              </div>
+            </div>
+
+            <!-- Offline Mode Message -->
+            <div id="mcp-offline-message" class="offline-placeholder hidden">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+                <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.5"></path>
+                <path d="M5 12.5a10.94 10.94 0 0 1 5.17-2.39"></path>
+                <path d="M10.71 5.05A16 16 0 0 1 22.5 8"></path>
+                <path d="M1.5 8a15.93 15.93 0 0 1 7.27-2.4"></path>
+              </svg>
+              <h3>Unable to Connect to Downstream MCP</h3>
+              <p id="mcp-error-text">Check your SUPABASE_MCP_URL setting in .env files</p>
+            </div>
+          </section>
+
+        </div>
+      </div>
+
+      <!-- Bottom Column: Developers Directory -->
+      <section class="glass-card table-section">
+        <div class="table-header-panel">
+          <div>
+            <h2>Developer Credentials Directory</h2>
+            <p>Monitor active keys, audit usage expiration dates, and revoke developer access instantly</p>
+          </div>
+          <div class="search-panel">
+            <input type="text" id="dev-search" placeholder="Filter by email or name...">
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="premium-table">
+            <thead>
+              <tr>
+                <th>Developer Name</th>
+                <th>Developer Email</th>
+                <th>Created Timestamp</th>
+                <th>Expiration Date</th>
+                <th>Access Status</th>
+                <th class="actions-col">Security Actions</th>
+              </tr>
+            </thead>
+            <tbody id="developers-table-body">
+              <tr>
+                <td colspan="6">
+                  <div class="loading-spinner-wrapper">
+                    <div class="spinner"></div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Notification Toast container -->
+  <div id="toast-container" class="toast-wrapper"></div>
+
+  <!-- Logic Layer SPA script -->
+  <script>
+    // State management
+    const state = {
+      token: localStorage.getItem('admin_token'),
+      developers: [],
+      mcpStatus: 'Offline',
+      mcpTools: []
+    };
+
+    // DOM Elements
+    const loginScreen = document.getElementById('login-screen');
+    const dashboardScreen = document.getElementById('dashboard-screen');
+    const loginForm = document.getElementById('login-form');
+    const loginError = document.getElementById('login-error');
+    const tokenGenForm = document.getElementById('token-generator-form');
+    const devTableBody = document.getElementById('developers-table-body');
+    const devSearch = document.getElementById('dev-search');
+    const mcpStatusBadge = document.getElementById('mcp-status-badge');
+    const mcpToolsContainer = document.getElementById('mcp-tools-container');
+    const mcpOfflineMessage = document.getElementById('mcp-offline-message');
+    const logoutBtn = document.getElementById('logout-btn');
+    
+    const generatedTokenCard = document.getElementById('generated-token-card');
+    const rawTokenBox = document.getElementById('raw-token-box');
+    const curlSnippetBox = document.getElementById('curl-snippet-box');
+    const closeTokenCardBtn = document.getElementById('close-token-card-btn');
+
+    // Init App
+    document.addEventListener('DOMContentLoaded', () => {
+      initSession();
+      
+      // Bindings
+      loginForm.addEventListener('submit', handleLogin);
+      tokenGenForm.addEventListener('submit', handleTokenGeneration);
+      devSearch.addEventListener('input', filterDevelopers);
+      logoutBtn.addEventListener('logout', logout);
+      logoutBtn.onclick = logout;
+      closeTokenCardBtn.onclick = () => {
+        generatedTokenCard.classList.add('hidden');
+        tokenGenForm.reset();
+      };
+    });
+
+    function initSession() {
+      if (state.token) {
+        loginScreen.classList.remove('active');
+        dashboardScreen.classList.add('active');
+        loadDashboardData();
+      } else {
+        dashboardScreen.classList.remove('active');
+        loginScreen.classList.add('active');
+      }
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      loginError.classList.add('hidden');
+      const password = document.getElementById('admin-password').value;
+
+      try {
+        const response = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          state.token = data.token;
+          localStorage.setItem('admin_token', state.token);
+          initSession();
+          showToast('Authorize Successful', 'welcome', 'success');
+        } else {
+          loginError.classList.remove('hidden');
+          showToast('Access Denied', 'Invalid passphrase entered.', 'error');
+        }
+      } catch (err) {
+        loginError.innerText = 'Connection to gateway failed.';
+        loginError.classList.remove('hidden');
+        showToast('Network Error', 'Could not establish connection to the server.', 'error');
+      }
+    }
+
+    function logout() {
+      state.token = null;
+      localStorage.removeItem('admin_token');
+      initSession();
+      showToast('Session Terminated', 'You signed out.', 'info');
+    }
+
+    // Helper for API fetches guarding admin token
+    async function apiFetch(url, options = {}) {
+      const headers = {
+        'Authorization': `Bearer ${state.token}`,
+        ...options.headers
+      };
+      
+      try {
+        const res = await fetch(url, { ...options, headers });
+        if (res.status === 401) {
+          showToast('Expired Session', 'Admin session expired. Logging out...', 'error');
+          setTimeout(logout, 1500);
+          throw new Error('Session Expired');
+        }
+        return res;
+      } catch (err) {
+        if (err.message !== 'Session Expired') {
+          console.error(err);
+        }
+        throw err;
+      }
+    }
+
+    function loadDashboardData() {
+      fetchDevelopersList();
+      pollSupabaseMCPStatus();
+    }
+
+    async function fetchDevelopersList() {
+      try {
+        const res = await apiFetch('/api/admin/tokens');
+        if (res.ok) {
+          state.developers = await res.json();
+          renderDevelopers(state.developers);
+        }
+      } catch (err) {
+        showToast('Database Error', 'Could not retrieve developer registry.', 'error');
+      }
+    }
+
+    async function pollSupabaseMCPStatus() {
+      try {
+        const res = await apiFetch('/api/admin/mcp-status');
+        if (res.ok) {
+          const data = await res.json();
+          renderMcpStatus(data);
+        }
+      } catch (err) {
+        renderMcpStatus({ status: 'Offline', error: 'Gateway timeout or connection refused' });
+      }
+    }
+
+    function renderMcpStatus(data) {
+      mcpStatusBadge.className = 'badge';
+      mcpToolsContainer.innerHTML = '';
+      
+      if (data.status === 'Online') {
+        mcpStatusBadge.classList.add('online');
+        mcpStatusBadge.querySelector('.badge-label').innerText = 'Online';
+        mcpOfflineMessage.classList.add('hidden');
+        mcpToolsContainer.classList.remove('hidden');
+
+        if (!data.tools || data.tools.length === 0) {
+          mcpToolsContainer.innerHTML = `
+            <div class="empty-tools-wrapper">
+              <p>Online, but no tool capabilities are exposed currently.</p>
+            </div>
+          `;
+          return;
+        }
+
+        data.tools.forEach(tool => {
+          const item = document.createElement('div');
+          item.className = 'tool-item';
+          item.innerHTML = `
+            <div class="tool-head">
+              <span class="tool-name">${escapeHTML(tool.name)}</span>
+              <span class="tool-badge-protocol">JSON-RPC</span>
+            </div>
+            <p class="tool-desc">${escapeHTML(tool.description || 'No description provided')}</p>
+          `;
+          mcpToolsContainer.appendChild(item);
+        });
+      } else {
+        mcpStatusBadge.classList.add('offline');
+        mcpStatusBadge.querySelector('.badge-label').innerText = 'Offline';
+        
+        mcpOfflineMessage.classList.remove('hidden');
+        mcpToolsContainer.classList.add('hidden');
+        document.getElementById('mcp-error-text').innerText = data.error || 'Check configuration variables';
+      }
+    }
+
+    function renderDevelopers(devs) {
+      devTableBody.innerHTML = '';
+      if (devs.length === 0) {
+        devTableBody.innerHTML = `
+          <tr>
+            <td colspan="6" class="table-empty-row">
+              <h3>No developer tokens registered</h3>
+              <p>Provide developer information above to generate their first credentials</p>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      devs.forEach(dev => {
+        const row = document.createElement('tr');
+        row.className = dev.status === 'revoked' ? 'row-revoked' : '';
+        
+        const createdDate = new Date(dev.created).toLocaleString();
+        const expiresDate = dev.expires === 'Never' ? 'Never' : new Date(dev.expires).toLocaleString();
+
+        const badgeClass = dev.status === 'active' ? 'status-pill active' : 'status-pill revoked';
+        const badgeLabel = dev.status === 'active' ? 'Active' : 'Revoked';
+
+        const actionButton = dev.status === 'active' 
+          ? `<button class="btn-revoke" onclick="revokeToken('${dev.id}', '${escapeHTML(dev.name)}')">Revoke Access</button>`
+          : `<span class="action-revoked-placeholder">Disabled</span>`;
+
+        row.innerHTML = `
+          <td>
+            <div class="dev-name-field">
+              <span class="avatar">${escapeHTML(dev.name[0].toUpperCase())}</span>
+              <span class="name-label">${escapeHTML(dev.name)}</span>
+            </div>
+          </td>
+          <td><span class="email-label">${escapeHTML(dev.email)}</span></td>
+          <td><span class="date-label">${createdDate}</span></td>
+          <td><span class="date-label">${expiresDate}</span></td>
+          <td><span class="${badgeClass}">${badgeLabel}</span></td>
+          <td class="actions-col">${actionButton}</td>
+        `;
+        devTableBody.appendChild(row);
+      });
+    }
+
+    async function handleTokenGeneration(e) {
+      e.preventDefault();
+      document.getElementById('gen-error').classList.add('hidden');
+
+      const name = document.getElementById('dev-name').value;
+      const email = document.getElementById('dev-email').value;
+      const expiresInDays = document.getElementById('dev-lifespan').value;
+
+      try {
+        const res = await apiFetch('/api/admin/tokens', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, expiresInDays })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const dev = data.developer;
+          
+          // Display the token panel
+          rawTokenBox.innerText = `Bearer ${dev.token}`;
+          curlSnippetBox.innerText = `curl -i -X POST \\\n  -H "Authorization: Bearer ${dev.token}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"jsonrpc":"2.0","method":"list_tools","params":{},"id":1}' \\\n  ${window.location.origin}/mcp`;
+          
+          generatedTokenCard.classList.remove('hidden');
+          generatedTokenCard.scrollIntoView({ behavior: 'smooth' });
+
+          showToast('Credentials Generated', `Access granted to ${name}`, 'success');
+          
+          // Refresh list
+          fetchDevelopersList();
+        } else {
+          document.getElementById('gen-error').classList.remove('hidden');
+        }
+      } catch (err) {
+        showToast('Generation Failure', 'Server failed to sign JWT.', 'error');
+      }
+    }
+
+    async function revokeToken(id, name) {
+      if (!confirm(`Are you absolutely sure you want to revoke the access credentials for ${name}? The developer will immediately lose all gateway permissions.`)) {
+        return;
+      }
+
+      try {
+        const res = await apiFetch(`/api/admin/tokens/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          showToast('Access Revoked', `Blocked credentials for ${name}`, 'warning');
+          fetchDevelopersList();
+        }
+      } catch (err) {
+        showToast('Revocation Failed', 'Failed to update credentials database', 'error');
+      }
+    }
+
+    function filterDevelopers() {
+      const query = devSearch.value.toLowerCase();
+      const filtered = state.developers.filter(dev => 
+        dev.name.toLowerCase().includes(query) || 
+        dev.email.toLowerCase().includes(query)
+      );
+      renderDevelopers(filtered);
+    }
+
+    // Dynamic toast system
+    function showToast(title, message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      
+      const icons = {
+        success: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
+        error: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`,
+        warning: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`,
+        info: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`
+      };
+
+      toast.innerHTML = `
+        <div class="toast-icon">${icons[type] || icons.info}</div>
+        <div class="toast-body">
+          <h4>${escapeHTML(title)}</h4>
+          <p>${escapeHTML(message)}</p>
+        </div>
+      `;
+
+      container.appendChild(toast);
+      
+      // Animate in
+      setTimeout(() => toast.classList.add('visible'), 10);
+      
+      // Auto dismiss
+      setTimeout(() => {
+        toast.classList.remove('visible');
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    // Helper functions
+    function escapeHTML(str) {
+      if (!str) return '';
+      return str.replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
+
+    function copyText(elementId) {
+      const text = document.getElementById(elementId).innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Copied', 'Snippet copied to clipboard.', 'success');
+      }).catch(err => {
+        showToast('Clipboard Error', 'Could not copy automatically.', 'error');
+      });
+    }
+  </script>
+</body>
+</html>

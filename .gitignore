@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+jspm_packages/
+
+# Local databases and secrets (Security Safeguard)
+.env
+data/*.json
+data/developers.json
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS Metadata
+.DS_Store
+Thumbs.db
