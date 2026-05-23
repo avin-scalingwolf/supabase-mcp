@@ -6,7 +6,10 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node src/server.js"
+    "dev": "node src/server.js",
+    "query": "node query.js",
+    "test-mcp": "node test-mcp.js",
+    "list-schemas-mcp": "node list-schemas-mcp.js"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -15,7 +18,8 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-rate-limit": "^7.2.0",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.21.0"
   },
   "keywords": [
     "mcp",
