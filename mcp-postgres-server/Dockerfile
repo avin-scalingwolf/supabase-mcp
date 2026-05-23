@@ -1,12 +1,16 @@
 FROM node:20-alpine
 
-# Install git, clone supergateway, and install dependencies globally (ignoring npm scripts)
-RUN apk add --no-cache git && \
+COPY stdioToSse.patch /stdioToSse.patch
+
+# Install git, clone supergateway, bypass husky, apply patch, and install dependencies globally
+RUN apk add --no-cache git patch && \
     git clone https://github.com/supercorp-ai/supergateway.git /tmp/supergateway && \
+    cd /tmp/supergateway && patch -p1 < /stdioToSse.patch && cd / && \
+    sed -i 's/husky/echo/g' /tmp/supergateway/package.json && \
     npm install -g --ignore-scripts \
     @modelcontextprotocol/server-postgres \
     /tmp/supergateway && \
-    rm -rf /tmp/supergateway
+    rm -rf /tmp/supergateway /stdioToSse.patch
 
 # Expose HTTP port
 EXPOSE 3000
