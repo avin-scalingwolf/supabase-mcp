@@ -11,6 +11,18 @@ const proxyRequest = require('./proxy');
 const verifyAdminToken = require('./admin-auth');
 
 const DEVELOPERS_DB_PATH = path.join(__dirname, '../data/developers.json');
+const DEVELOPERS_DB_DIR  = path.join(__dirname, '../data');
+
+// Auto-initialize data directory and registry file on startup
+// This ensures fresh containers (or containers without persistent storage) don't crash
+if (!fs.existsSync(DEVELOPERS_DB_DIR)) {
+  fs.mkdirSync(DEVELOPERS_DB_DIR, { recursive: true });
+  console.log('[INIT] Created data directory:', DEVELOPERS_DB_DIR);
+}
+if (!fs.existsSync(DEVELOPERS_DB_PATH)) {
+  fs.writeFileSync(DEVELOPERS_DB_PATH, '[]', 'utf8');
+  console.log('[INIT] Initialized empty developers registry:', DEVELOPERS_DB_PATH);
+}
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -104,6 +116,10 @@ app.post('/api/admin/login', (req, res) => {
 app.get('/api/admin/tokens', verifyAdminToken, (req, res) => {
   fs.readFile(DEVELOPERS_DB_PATH, 'utf8', (err, data) => {
     if (err) {
+      // File not found on fresh container — return empty list instead of crashing
+      if (err.code === 'ENOENT') {
+        return res.json([]);
+      }
       console.error(`[ADMIN API ERROR] Failed to read database: ${err.message}`);
       return res.status(500).json({ error: 'Internal Database Error', message: 'Failed to retrieve developers registry.' });
     }
