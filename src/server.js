@@ -214,39 +214,31 @@ app.delete('/api/admin/tokens/:id', verifyAdminToken, (req, res) => {
   });
 });
 
-// 7. Authenticated Administrative API - Supabase live tool status introspection
+// 7. Authenticated Administrative API - Supabase MCP liveness check
 app.get('/api/admin/mcp-status', verifyAdminToken, async (req, res) => {
   try {
-    const headers = { 'Content-Type': 'application/json' };
-    
-    // Securely inject Supabase Service Role Key if configured
-    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
-      headers['apikey'] = serviceKey;
-      headers['authorization'] = `Bearer ${serviceKey}`;
-    }
-
-    // Derive the base URL and always POST to /message (JSON-RPC endpoint)
-    // /sse is for SSE stream connections only and does not accept POST
+    // The MCP SSE protocol requires a sessionId obtained from an /sse connection
+    // before any JSON-RPC POST to /message is valid. Instead, we check the /health
+    // endpoint exposed by supergateway via --health-endpoint /health flag.
     const mcpBase = process.env.SUPABASE_MCP_URL.replace(/\/(sse|message)\/?$/, '');
-    const mcpMessageUrl = `${mcpBase}/message`;
+    const healthUrl = `${mcpBase}/health`;
 
-    const response = await fetch(mcpMessageUrl, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', params: {}, id: 1 })
+    const response = await fetch(healthUrl, {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000)
     });
 
     if (response.ok) {
-      const data = await response.json();
       return res.json({
         status: 'Online',
-        tools: data.result ? data.result.tools : []
+        message: 'MCP server is reachable and healthy',
+        mcpUrl: `${mcpBase}/sse`,
+        tools: []
       });
     } else {
       return res.json({
         status: 'Offline',
-        error: `Supabase MCP returned code ${response.status}`,
+        error: `MCP health check returned code ${response.status}`,
         tools: []
       });
     }
