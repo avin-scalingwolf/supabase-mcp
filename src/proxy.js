@@ -5,7 +5,7 @@ if (!SUPABASE_MCP_URL) {
   process.exit(1);
 }
 
-// Parse base URL for path resolution
+// Parse base URL — strip any trailing /sse or /message path so we always work from the base
 let parsedTargetUrl;
 try {
   parsedTargetUrl = new URL(SUPABASE_MCP_URL);
@@ -14,46 +14,44 @@ try {
   process.exit(1);
 }
 
+// Derive clean base URL (e.g. http://supabase-mcp-server:3000)
+const MCP_BASE_URL = `${parsedTargetUrl.protocol}//${parsedTargetUrl.host}`;
+
 /**
  * Proxy Request Handler
- * Proxies the request to the target self-hosted Supabase MCP endpoint.
+ *
+ * MCP over SSE uses two endpoints on the downstream server:
+ *   GET  /sse     — SSE stream that the client subscribes to for server push events
+ *   POST /message — JSON-RPC endpoint the client sends tool calls to
+ *
+ * Routing logic:
+ *   GET  /mcp   → downstream GET  /sse      (open SSE stream, pipe back to client)
+ *   POST /mcp   → downstream POST /message  (JSON-RPC tool call)
  */
 async function proxyRequest(req, res) {
-  // Resolve final target URL with sub-path and query parameters
-  // e.g. If SUPABASE_MCP_URL = "http://target/mcp"
-  // And incoming request path = "/mcp/tools?foo=bar"
-  // The subpath relative to "/mcp" is "/tools"
-  // The final target should be "http://target/mcp/tools?foo=bar"
-  const subpath = req.path.replace(/^\/mcp/, '');
+  // Preserve query string (e.g. ?sessionId=xxx that supergateway uses)
   const queryStr = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
-  
-  let targetUrlString;
-  try {
-    const combinedPath = (parsedTargetUrl.pathname.replace(/\/$/, '') + subpath).replace(/\/+/g, '/');
-    const finalUrl = new URL(combinedPath + queryStr, parsedTargetUrl.origin);
-    targetUrlString = finalUrl.toString();
-  } catch (urlErr) {
-    console.error(`[PROXY ERROR] Failed to resolve target URL: ${urlErr.message}`);
-    return res.status(400).json({
-      error: 'Bad Request',
-      message: 'Failed to resolve downstream URL path'
-    });
-  }
+
+  // Route based on HTTP method
+  const isSSE = req.method === 'GET';
+  const targetUrlString = isSSE
+    ? `${MCP_BASE_URL}/sse${queryStr}`
+    : `${MCP_BASE_URL}/message${queryStr}`;
 
   // Copy and sanitize request headers
   const headers = {};
   for (const [key, value] of Object.entries(req.headers)) {
-    // Exclude hop-by-hop, connection, host, and authorization (gateway already verified it)
     const lowerKey = key.toLowerCase();
+    // Exclude hop-by-hop and authorization headers (gateway already verified the client token)
     if ([
-      'host', 
-      'connection', 
-      'keep-alive', 
-      'proxy-authenticate', 
-      'proxy-authorization', 
-      'te', 
-      'trailer', 
-      'transfer-encoding', 
+      'host',
+      'connection',
+      'keep-alive',
+      'proxy-authenticate',
+      'proxy-authorization',
+      'te',
+      'trailer',
+      'transfer-encoding',
       'upgrade',
       'authorization'
     ].includes(lowerKey)) {
@@ -62,21 +60,20 @@ async function proxyRequest(req, res) {
     headers[key] = value;
   }
 
-  // Ensure content-type defaults to application/json if there's a body and it is missing
+  // Ensure content-type defaults to application/json for request bodies
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && !headers['content-type']) {
     headers['content-type'] = 'application/json';
   }
 
-  // Secure Downstream Key Shielding & Injection
-  // If the master Supabase Service Role Key is configured in the gateway, securely inject it
-  // into downstream request headers to authorize database commands.
+  // Secure Downstream Key Injection
+  // Inject master Supabase Service Role Key so clients never need to hold it
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
     headers['apikey'] = serviceKey;
     headers['authorization'] = `Bearer ${serviceKey}`;
   }
 
-  // Prepare request body
+  // Prepare request body for non-GET requests
   let body = undefined;
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
     if (req.body) {
@@ -90,47 +87,72 @@ async function proxyRequest(req, res) {
     }
   }
 
+  // SSE connections are long-lived — no timeout; all others get 30s
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-
-  const requestOptions = {
-    method: req.method,
-    headers: headers,
-    body: body,
-    signal: controller.signal,
-    // Note: in local dev with self-signed certs you could use an agent, but in production Node standard fetch handles certs via system pool
-  };
+  const timeoutId = isSSE ? null : setTimeout(() => controller.abort(), 30000);
 
   try {
     console.log(`[PROXYING] ${req.method} ${req.originalUrl} -> ${targetUrlString}`);
-    const response = await fetch(targetUrlString, requestOptions);
-    clearTimeout(timeoutId);
 
-    // Forward downstream response headers
+    const response = await fetch(targetUrlString, {
+      method: req.method,
+      headers,
+      body,
+      signal: controller.signal,
+    });
+
+    if (timeoutId) clearTimeout(timeoutId);
+
+    // Forward response headers (skip hop-by-hop)
     response.headers.forEach((value, key) => {
       const lowerKey = key.toLowerCase();
-      // Exclude connection/encoding headers that Express/Node handles
       if (!['connection', 'transfer-encoding', 'content-encoding', 'content-length'].includes(lowerKey)) {
         res.setHeader(key, value);
       }
     });
 
-    // Set status
     res.status(response.status);
 
-    // Stream or read the body
     const contentType = response.headers.get('content-type') || '';
+
+    // SSE stream — pipe chunks directly to the client as they arrive
+    if (contentType.includes('text/event-stream')) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders();
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      // Cancel the upstream reader when the client disconnects
+      req.on('close', () => reader.cancel().catch(() => {}));
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(decoder.decode(value, { stream: true }));
+        }
+      } finally {
+        res.end();
+      }
+      return;
+    }
+
+    // Standard JSON response
     if (contentType.includes('application/json')) {
       const json = await response.json();
       return res.json(json);
-    } else {
-      const text = await response.text();
-      return res.send(text);
     }
 
+    // Fallback: plain text / other
+    const text = await response.text();
+    return res.send(text);
+
   } catch (err) {
-    clearTimeout(timeoutId);
-    
+    if (timeoutId) clearTimeout(timeoutId);
+
     if (err.name === 'AbortError') {
       console.error(`[PROXY TIMEOUT] Downstream request to ${targetUrlString} timed out`);
       return res.status(504).json({

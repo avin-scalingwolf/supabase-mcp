@@ -226,10 +226,15 @@ app.get('/api/admin/mcp-status', verifyAdminToken, async (req, res) => {
       headers['authorization'] = `Bearer ${serviceKey}`;
     }
 
-    const response = await fetch(process.env.SUPABASE_MCP_URL, {
+    // Derive the base URL and always POST to /message (JSON-RPC endpoint)
+    // /sse is for SSE stream connections only and does not accept POST
+    const mcpBase = process.env.SUPABASE_MCP_URL.replace(/\/(sse|message)\/?$/, '');
+    const mcpMessageUrl = `${mcpBase}/message`;
+
+    const response = await fetch(mcpMessageUrl, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'list_tools', params: {}, id: 1 })
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', params: {}, id: 1 })
     });
 
     if (response.ok) {
@@ -255,9 +260,12 @@ app.get('/api/admin/mcp-status', verifyAdminToken, async (req, res) => {
 });
 
 // 8. Protected Proxy Routes
-// Validates Bearer token first, then proxies directly to self-hosted Supabase MCP
+// GET  /mcp   → SSE stream   (supergateway /sse)
+// POST /mcp   → JSON-RPC     (supergateway /message)
+// POST /message → JSON-RPC with sessionId (supergateway /message?sessionId=xxx)
 app.all('/mcp', verifyToken, proxyRequest);
 app.all('/mcp/*', verifyToken, proxyRequest);
+app.post('/message', verifyToken, proxyRequest);  // SSE clients post here after connecting
 
 // 9. Default Deny catch-all route (Blocks all unauthorized / unspecified routes)
 app.use((req, res) => {
