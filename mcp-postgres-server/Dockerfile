@@ -2,7 +2,7 @@ FROM node:20-alpine
 
 # Install git and dependencies globally
 RUN apk add --no-cache git && \
-    npm install -g \
+    npm install -g --ignore-scripts \
     @modelcontextprotocol/server-postgres \
     github:supercorp-ai/supergateway
 
