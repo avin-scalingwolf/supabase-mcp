@@ -230,6 +230,43 @@ app.delete('/api/admin/tokens/:id', verifyAdminToken, (req, res) => {
   });
 });
 
+// 6b. Authenticated Administrative API - Permanent Purge Developer Token
+app.delete('/api/admin/tokens/:id/purge', verifyAdminToken, (req, res) => {
+  const { id } = req.params;
+
+  fs.readFile(DEVELOPERS_DB_PATH, 'utf8', (err, data) => {
+    if (err) {
+      return res.status(500).json({ error: 'Internal Database Error', message: 'Failed to access database.' });
+    }
+
+    let developers = [];
+    try {
+      developers = JSON.parse(data);
+    } catch (e) {
+      return res.status(500).json({ error: 'Internal Database Error', message: 'Database corruption.' });
+    }
+
+    const initialLength = developers.length;
+    const filteredDevelopers = developers.filter(d => d.id !== id);
+
+    if (filteredDevelopers.length === initialLength) {
+      return res.status(404).json({ error: 'Not Found', message: 'Developer record not found.' });
+    }
+
+    fs.writeFile(DEVELOPERS_DB_PATH, JSON.stringify(filteredDevelopers, null, 2), 'utf8', (writeErr) => {
+      if (writeErr) {
+        return res.status(500).json({ error: 'Internal Database Error', message: 'Failed to write data changes.' });
+      }
+
+      console.warn(`[TOKEN PURGED] IP: ${req.ip} | Admin: ${req.admin.email} | Purged ID: ${id}`);
+      return res.json({
+        success: true,
+        message: 'Developer token purged permanently.'
+      });
+    });
+  });
+});
+
 // 7. Authenticated Administrative API - Supabase MCP liveness check
 app.get('/api/admin/mcp-status', verifyAdminToken, async (req, res) => {
   try {

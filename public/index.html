@@ -459,8 +459,13 @@
         const badgeLabel = dev.status === 'active' ? 'Active' : 'Revoked';
 
         const actionButton = dev.status === 'active' 
-          ? `<button class="btn-revoke" onclick="revokeToken('${dev.id}', '${escapeHTML(dev.name)}')">Revoke Access</button>`
-          : `<span class="action-revoked-placeholder">Disabled</span>`;
+          ? `<div class="actions-wrapper">
+               <button class="btn-action btn-revoke" onclick="revokeToken('${dev.id}', '${escapeHTML(dev.name)}')">Revoke</button>
+               <button class="btn-action btn-delete" onclick="purgeToken('${dev.id}', '${escapeHTML(dev.name)}')">Delete</button>
+             </div>`
+          : `<div class="actions-wrapper">
+               <button class="btn-action btn-delete-permanent" onclick="purgeToken('${dev.id}', '${escapeHTML(dev.name)}')">Delete Permanent</button>
+             </div>`;
 
         row.innerHTML = `
           <td>
@@ -530,6 +535,22 @@
         }
       } catch (err) {
         showToast('Revocation Failed', 'Failed to update credentials database', 'error');
+      }
+    }
+
+    async function purgeToken(id, name) {
+      if (!confirm(`Are you absolutely sure you want to permanently delete the credentials for ${name}? This will completely remove them from the database and is irreversible.`)) {
+        return;
+      }
+
+      try {
+        const res = await apiFetch(`/api/admin/tokens/${id}/purge`, { method: 'DELETE' });
+        if (res.ok) {
+          showToast('Credentials Purged', `Permanently deleted credentials for ${name}`, 'danger');
+          fetchDevelopersList();
+        }
+      } catch (err) {
+        showToast('Purge Failed', 'Failed to remove credentials from database', 'error');
       }
     }
 

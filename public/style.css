@@ -720,25 +720,47 @@ input:focus, select:focus {
 /* Row Action items */
 .actions-col {
   text-align: right;
-  width: 140px;
+  width: 240px;
 }
-.btn-revoke {
+.actions-wrapper {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+.btn-action {
   background: transparent;
-  color: var(--danger);
-  border: 1px solid hsla(355, 75%, 50%, 0.3);
   padding: 6px 12px;
   border-radius: 6px;
   font-family: var(--font-display);
-  font-weight: 500;
+  font-weight: 600;
   font-size: 0.8rem;
   cursor: pointer;
   transition: var(--transition-smooth);
 }
+.btn-revoke {
+  color: hsl(35, 80%, 65%);
+  border: 1px solid hsla(35, 75%, 50%, 0.35);
+}
 .btn-revoke:hover {
+  background: hsl(35, 80%, 65%);
+  color: hsl(224, 30%, 5%);
+  border-color: hsl(35, 80%, 65%);
+  box-shadow: 0 0 10px hsla(35, 80%, 65%, 0.3);
+}
+.btn-delete, .btn-delete-permanent {
+  color: var(--danger);
+  border: 1px solid hsla(355, 75%, 50%, 0.35);
+}
+.btn-delete:hover, .btn-delete-permanent:hover {
   background: var(--danger);
   color: hsl(224, 30%, 5%);
   border-color: var(--danger-hover);
   box-shadow: 0 0 10px var(--danger-glow);
+}
+.btn-delete-permanent {
+  width: 100%;
+  text-align: center;
 }
 .action-revoked-placeholder {
   color: var(--text-muted);
