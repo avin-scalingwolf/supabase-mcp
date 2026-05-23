@@ -1,16 +1,9 @@
 FROM node:20-alpine
 
-COPY stdioToSse.patch /stdioToSse.patch
-
-# Install git, clone supergateway, bypass husky, apply patch, and install dependencies globally
-RUN apk add --no-cache git patch && \
-    git clone https://github.com/supercorp-ai/supergateway.git /tmp/supergateway && \
-    cd /tmp/supergateway && patch -p1 < /stdioToSse.patch && cd / && \
-    sed -i 's/husky/echo/g' /tmp/supergateway/package.json && \
-    npm install -g --ignore-scripts \
-    @modelcontextprotocol/server-postgres \
-    /tmp/supergateway && \
-    rm -rf /tmp/supergateway /stdioToSse.patch
+# Install dependencies globally and patch supergateway compiled JS to fix transport crash
+RUN npm install -g @modelcontextprotocol/server-postgres supergateway && \
+    sed -i '/const server = new Server({ name:/d' /usr/local/lib/node_modules/supergateway/dist/gateways/stdioToSse.js && \
+    sed -i 's/await server.connect(sseTransport);/const server = new Server({ name: '\''supergateway'\'', version: getVersion() }, { capabilities: {} });\n        await server.connect(sseTransport);/' /usr/local/lib/node_modules/supergateway/dist/gateways/stdioToSse.js
 
 # Expose HTTP port
 EXPOSE 3000
