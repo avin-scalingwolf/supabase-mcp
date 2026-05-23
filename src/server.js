@@ -217,9 +217,18 @@ app.delete('/api/admin/tokens/:id', verifyAdminToken, (req, res) => {
 // 7. Authenticated Administrative API - Supabase live tool status introspection
 app.get('/api/admin/mcp-status', verifyAdminToken, async (req, res) => {
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    
+    // Securely inject Supabase Service Role Key if configured
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
+      headers['apikey'] = serviceKey;
+      headers['authorization'] = `Bearer ${serviceKey}`;
+    }
+
     const response = await fetch(process.env.SUPABASE_MCP_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify({ jsonrpc: '2.0', method: 'list_tools', params: {}, id: 1 })
     });
 

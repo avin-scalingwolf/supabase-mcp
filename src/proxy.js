@@ -67,6 +67,15 @@ async function proxyRequest(req, res) {
     headers['content-type'] = 'application/json';
   }
 
+  // Secure Downstream Key Shielding & Injection
+  // If the master Supabase Service Role Key is configured in the gateway, securely inject it
+  // into downstream request headers to authorize database commands.
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
+    headers['apikey'] = serviceKey;
+    headers['authorization'] = `Bearer ${serviceKey}`;
+  }
+
   // Prepare request body
   let body = undefined;
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
