@@ -153,6 +153,15 @@ async function proxyRequest(req, res) {
   } catch (err) {
     if (timeoutId) clearTimeout(timeoutId);
 
+    // If headers are already sent (e.g. mid-stream SSE failure), do not send a 5xx HTTP response
+    if (res.headersSent) {
+      console.error(`[PROXY STREAM ERROR] Connection failed mid-stream: ${err.message}`);
+      if (!res.writableEnded) {
+        res.end();
+      }
+      return;
+    }
+
     if (err.name === 'AbortError') {
       console.error(`[PROXY TIMEOUT] Downstream request to ${targetUrlString} timed out`);
       return res.status(504).json({

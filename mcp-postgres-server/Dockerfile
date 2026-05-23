@@ -3,7 +3,7 @@ FROM node:20-alpine
 # Install dependencies globally
 RUN npm install -g \
     @modelcontextprotocol/server-postgres \
-    supergateway
+    github:supercorp-ai/supergateway
 
 # Expose HTTP port
 EXPOSE 3000
@@ -14,4 +14,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
 
 # Start: supergateway bridges stdio postgres MCP over HTTP/SSE
 # --health-endpoint /health enables the /health route for Docker healthcheck
-CMD ["sh", "-c", "supergateway --stdio \"npx -y @modelcontextprotocol/server-postgres ${POSTGRES_URL:-$DATABASE_URL}\" --port 3000 --host 0.0.0.0 --health-endpoint /health"]
+CMD ["sh", "-c", "supergateway --stdio \"mcp-server-postgres ${POSTGRES_URL:-$DATABASE_URL}\" --port 3000 --host 0.0.0.0 --health-endpoint /health"]
