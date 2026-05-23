@@ -413,6 +413,8 @@ input:focus, select:focus {
   border: 1px solid var(--border-color);
   border-radius: 10px;
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
 }
 .copy-box code {
   flex-grow: 1;
@@ -421,7 +423,8 @@ input:focus, select:focus {
   font-size: 0.82rem;
   color: var(--primary);
   overflow-x: auto;
-  white-space: nowrap;
+  white-space: pre;
+  min-width: 0;
 }
 .copy-action-btn {
   background: hsla(224, 10%, 20%, 0.5);
@@ -431,6 +434,7 @@ input:focus, select:focus {
   color: var(--text-secondary);
   cursor: pointer;
   transition: var(--transition-smooth);
+  flex-shrink: 0;
 }
 .copy-action-btn:hover {
   background: var(--primary);
