@@ -460,6 +460,7 @@
 
         const actionButton = dev.status === 'active' 
           ? `<div class="actions-wrapper">
+               <button class="btn-action btn-copy-row" onclick="copyTokenById('${dev.id}', '${escapeHTML(dev.name)}')">Copy</button>
                <button class="btn-action btn-revoke" onclick="revokeToken('${dev.id}', '${escapeHTML(dev.name)}')">Revoke</button>
                <button class="btn-action btn-delete" onclick="purgeToken('${dev.id}', '${escapeHTML(dev.name)}')">Delete</button>
              </div>`
@@ -551,6 +552,17 @@
         }
       } catch (err) {
         showToast('Purge Failed', 'Failed to remove credentials from database', 'error');
+      }
+    }
+
+    function copyTokenById(id, name) {
+      const dev = state.developers.find(d => d.id === id);
+      if (dev && dev.token) {
+        navigator.clipboard.writeText(`Bearer ${dev.token}`).then(() => {
+          showToast('Token Copied', `Authorization header copied for ${name}`, 'success');
+        }).catch(err => {
+          showToast('Clipboard Error', 'Could not copy automatically.', 'error');
+        });
       }
     }
 
