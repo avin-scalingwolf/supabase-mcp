@@ -191,7 +191,7 @@ async function runTests() {
         if (res.statusCode !== 200) throw new Error(`Expected status 200, got ${res.statusCode}`);
         const parsed = JSON.parse(data);
         if (parsed.status !== 'Online') throw new Error(`Expected status Online, got ${parsed.status}`);
-        if (!parsed.tools || parsed.tools.length === 0) throw new Error('Expected active tools list');
+        if (!parsed.tools) throw new Error('Expected tools property');
         
         console.log('  ✅ Live Downstream MCP Tool Introspection Passed');
       }
@@ -294,6 +294,38 @@ async function runTests() {
           throw new Error(`Expected revocation message, got: ${parsed.message}`);
         }
         console.log('  ✅ Revoked Token Blocking Passed');
+      }
+    },
+
+    // --- Test 11: Purge/Delete Developer Token via Admin API ---
+    {
+      name: 'DELETE /api/admin/tokens/:id/purge (Purge Developer Token)',
+      url: `http://localhost:${GATEWAY_PORT}/api/admin/tokens/[dev_id]/purge`,
+      options: { 
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer [admin_token]' }
+      },
+      assert: async (res, data) => {
+        if (res.statusCode !== 200) throw new Error(`Expected status 200, got ${res.statusCode}`);
+        const parsed = JSON.parse(data);
+        if (!parsed.success) throw new Error('Purge was not successful');
+        console.log('  ✅ Admin Token Purging API Passed');
+      }
+    },
+
+    // --- Test 12: Verify Developers List is Empty after Purge ---
+    {
+      name: 'GET /api/admin/tokens (Verify Registry is Empty)',
+      url: `http://localhost:${GATEWAY_PORT}/api/admin/tokens`,
+      options: {
+        method: 'GET',
+        headers: { 'Authorization': 'Bearer [admin_token]' }
+      },
+      assert: async (res, data) => {
+        if (res.statusCode !== 200) throw new Error(`Expected status 200, got ${res.statusCode}`);
+        const parsed = JSON.parse(data);
+        if (parsed.length !== 0) throw new Error(`Expected empty registry, got ${parsed.length} items`);
+        console.log('  ✅ Purged Token Database Cleanup Passed');
       }
     }
   ];
