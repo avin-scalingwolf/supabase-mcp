@@ -295,9 +295,70 @@ const fetchToolsFromDownstream = async (supabaseMcpUrl) => {
     const decoder = new TextDecoder();
     let buffer = '';
     let sessionIdPath = null;
+    let tools = null;
 
     try {
-      while (true) {
+      // Step 1: Read stream until we get the endpoint
+      while (!sessionIdPath) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (line.startsWith('endpoint:')) {
+             const content = line.replace('endpoint:', '').trim();
+             sessionIdPath = content;
+             break;
+          } else if (line.startsWith('data:')) {
+             const content = line.replace('data:', '').trim();
+             if (content.startsWith('/message') || content.startsWith('http')) {
+               sessionIdPath = content;
+               break;
+             }
+          }
+        }
+      }
+
+      if (!sessionIdPath) {
+        throw new Error('Failed to obtain SSE sessionId path from downstream stream');
+      }
+
+      // Format message URL properly based on if it's relative or absolute
+      const messageUrl = sessionIdPath.startsWith('http') ? sessionIdPath : `${mcpBase}${sessionIdPath}`;
+
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
+        headers['apikey'] = serviceKey;
+        headers['authorization'] = `Bearer ${serviceKey}`;
+      }
+
+      const listPayload = {
+        jsonrpc: '2.0',
+        id: 'gateway-introspect',
+        method: 'tools/list',
+        params: {}
+      };
+
+      // Step 2: Fire the POST request (do not await its body, just its completion/status)
+      const postRes = await fetch(messageUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(listPayload),
+        signal: AbortSignal.timeout(5000)
+      });
+
+      if (!postRes.ok) {
+        throw new Error(`JSON-RPC post failed with status ${postRes.status}`);
+      }
+
+      // Step 3: Continue reading the SSE stream to catch the response for id 'gateway-introspect'
+      while (!tools) {
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -308,62 +369,34 @@ const fetchToolsFromDownstream = async (supabaseMcpUrl) => {
         for (const line of lines) {
           if (line.startsWith('data:')) {
             const content = line.replace('data:', '').trim();
-            if (content.startsWith('/message')) {
-              sessionIdPath = content;
-              break;
+            try {
+              const rpcMsg = JSON.parse(content);
+              if (rpcMsg.id === 'gateway-introspect') {
+                if (rpcMsg.error) {
+                  throw new Error(`JSON-RPC error: ${JSON.stringify(rpcMsg.error)}`);
+                }
+                tools = rpcMsg.result?.tools || [];
+                break;
+              }
+            } catch (e) {
+              // Ignore non-JSON lines or parse errors for other events
             }
           }
         }
-
-        if (sessionIdPath) {
-          break;
-        }
       }
+
     } finally {
+      // Step 4: Gracefully clean up the stream only AFTER we got our tools
       await reader.cancel().catch(() => {});
       controller.abort();
       clearTimeout(timeoutId);
     }
 
-    if (!sessionIdPath) {
-      throw new Error('Failed to obtain SSE sessionId path from downstream stream');
+    if (!tools) {
+      throw new Error('Never received tools/list response from SSE stream');
     }
 
-    // Call tools/list via JSON-RPC POST
-    const messageUrl = `${mcpBase}${sessionIdPath}`;
-    const headers = {
-      'Content-Type': 'application/json'
-    };
-    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
-      headers['apikey'] = serviceKey;
-      headers['authorization'] = `Bearer ${serviceKey}`;
-    }
-
-    const listPayload = {
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'tools/list',
-      params: {}
-    };
-
-    const postRes = await fetch(messageUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(listPayload),
-      signal: AbortSignal.timeout(5000)
-    });
-
-    if (!postRes.ok) {
-      throw new Error(`JSON-RPC post failed with status ${postRes.status}`);
-    }
-
-    const rpcRes = await postRes.json();
-    if (rpcRes.error) {
-      throw new Error(`JSON-RPC error: ${JSON.stringify(rpcRes.error)}`);
-    }
-
-    return rpcRes.result?.tools || [];
+    return tools;
   } catch (err) {
     console.error(`[TOOLS INTROSPECTION ERROR] ${err.message}`);
     clearTimeout(timeoutId);
