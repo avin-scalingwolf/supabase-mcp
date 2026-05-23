@@ -404,6 +404,177 @@ const fetchToolsFromDownstream = async (supabaseMcpUrl) => {
   }
 };
 
+/**
+ * Generic SSE MCP tool caller.
+ * Establishes an SSE session, calls a named tool with given args, and returns the result content.
+ */
+const callToolOnDownstream = async (supabaseMcpUrl, toolName, toolArgs) => {
+  const mcpBase = supabaseMcpUrl.replace(/\/(sse|message)\/?$/, '');
+  const sseUrl = `${mcpBase}/sse`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const response = await fetch(sseUrl, {
+      method: 'GET',
+      headers: { 'Accept': 'text/event-stream' },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`SSE handshake failed with status ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let sessionIdPath = null;
+    let result = null;
+    const rpcId = `gateway-tool-${Date.now()}`;
+
+    try {
+      // Step 1: Read stream until we get the session endpoint
+      while (!sessionIdPath) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (line.startsWith('endpoint:')) {
+            sessionIdPath = line.replace('endpoint:', '').trim();
+            break;
+          } else if (line.startsWith('data:')) {
+            const content = line.replace('data:', '').trim();
+            if (content.startsWith('/message') || content.startsWith('http')) {
+              sessionIdPath = content;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!sessionIdPath) {
+        throw new Error('Failed to obtain SSE sessionId path from downstream stream');
+      }
+
+      const messageUrl = sessionIdPath.startsWith('http') ? sessionIdPath : `${mcpBase}${sessionIdPath}`;
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
+        headers['apikey'] = serviceKey;
+        headers['authorization'] = `Bearer ${serviceKey}`;
+      }
+
+      // Step 2: POST the tools/call JSON-RPC request
+      const postRes = await fetch(messageUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: rpcId,
+          method: 'tools/call',
+          params: { name: toolName, arguments: toolArgs }
+        }),
+        signal: AbortSignal.timeout(5000)
+      });
+
+      if (!postRes.ok) {
+        throw new Error(`JSON-RPC POST failed with status ${postRes.status}`);
+      }
+
+      // Step 3: Read SSE stream for the tool call response
+      while (!result) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (line.startsWith('data:')) {
+            const content = line.replace('data:', '').trim();
+            try {
+              const rpcMsg = JSON.parse(content);
+              if (rpcMsg.id === rpcId) {
+                if (rpcMsg.error) {
+                  throw new Error(`JSON-RPC error: ${JSON.stringify(rpcMsg.error)}`);
+                }
+                result = rpcMsg.result;
+                break;
+              }
+            } catch (e) {
+              if (e.message.startsWith('JSON-RPC error:')) throw e;
+            }
+          }
+        }
+      }
+
+    } finally {
+      await reader.cancel().catch(() => {});
+      controller.abort();
+      clearTimeout(timeoutId);
+    }
+
+    if (!result) {
+      throw new Error('Never received tools/call response from SSE stream');
+    }
+
+    return result;
+  } catch (err) {
+    console.error(`[TOOL CALL ERROR] ${err.message}`);
+    clearTimeout(timeoutId);
+    throw err;
+  }
+};
+
+// 7b. Developer REST Query Endpoint
+// POST /api/query  { "sql": "SELECT ..." }
+// Returns the query result directly — no SSE session management needed by the client.
+app.post('/api/query', verifyToken, async (req, res) => {
+  const { sql } = req.body;
+
+  if (!sql || typeof sql !== 'string' || sql.trim() === '') {
+    return res.status(400).json({
+      error: 'Bad Request',
+      message: 'A non-empty "sql" string is required in the request body.'
+    });
+  }
+
+  try {
+    const result = await callToolOnDownstream(process.env.SUPABASE_MCP_URL, 'query', { sql });
+
+    // MCP tool results are returned as content[].text — parse and return clean JSON
+    let rows = null;
+    if (result.content && Array.isArray(result.content)) {
+      for (const item of result.content) {
+        if (item.type === 'text') {
+          try { rows = JSON.parse(item.text); } catch { rows = item.text; }
+          break;
+        }
+      }
+    }
+
+    console.log(`[QUERY] User: ${req.user?.email || req.user?.sub} | SQL: ${sql.substring(0, 120)}`);
+
+    return res.json({
+      success: true,
+      rows: rows ?? result
+    });
+  } catch (err) {
+    console.error(`[QUERY ERROR] User: ${req.user?.email} | ${err.message}`);
+    return res.status(502).json({
+      error: 'Query Failed',
+      message: err.message
+    });
+  }
+});
+
 // 7. Authenticated Administrative API - Supabase MCP liveness check
 app.get('/api/admin/mcp-status', verifyAdminToken, async (req, res) => {
   try {
